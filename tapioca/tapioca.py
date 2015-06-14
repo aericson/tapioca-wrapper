@@ -4,7 +4,30 @@ import requests
 import webbrowser
 
 
+class KeepDocMetaClass(type):
+    """
+    This metaclass changes the class to get it's __doc__ from
+    self._resource.
+    This has to be done with a metaclass because we want to fallback
+    to the original value of __doc__.
+    """
+    def __new__(cls, name, bases, attrs):
+        def _get_doc(self):
+            if self._resource:
+                return ("""Automatic generated __doc__ from resource_mapping:
+                        Resource: %s
+                        Docs: %s
+                        """ % (self._resource.get('resource', ''),
+                               self._resource.get('docs', '')))
+            return attrs.get('__doc__')
+        new_attrs = attrs.copy()
+        new_attrs['__doc__'] = property(_get_doc)
+
+        return super(KeepDocMetaClass, cls).__new__(cls, name, bases, new_attrs)
+
+
 class TapiocaClient(object):
+    __metaclass__ = KeepDocMetaClass
 
     def __init__(self, api, data=None, request_kwargs=None, api_params={},
             resource=None, *args, **kwargs):
@@ -38,8 +61,7 @@ class TapiocaClient(object):
             url = self._api.api_root + '/' + resource['resource']
             return TapiocaClient(self._api.__class__(), data=url, api_params=self._api_params,
                 resource=resource)
-
-        raise KeyError(name)
+        raise AttributeError(name)
 
     def __getitem__(self, key):
         return self.__getattr__(key)
